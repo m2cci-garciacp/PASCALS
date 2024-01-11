@@ -1,0 +1,22 @@
+#  Quelques informations sur la notation polonaise inversee
+#
+#  Les operandes sont places avant les operateurs
+#  x y + z * signifie ((x + y) * z)
+#
+#  Quelques operateurs postscript simples
+#  
+#  newpath     --> indique le debut d'un nouveau polygone a tracer
+#  closepatah  --> fermer le polygone en cours
+#
+#  x y moveto  --> se deplacer jusqu'au point de coordonnees (x,y)
+#  x y lineto  --> idem, en tracant un segment de droite
+#  stroke      --> afficher le trace
+#
+#
+#  pol findfont     --> rechercher la famille de polices de caracteres de nom pol
+#  taille scalefont --> dimensionner la police a taille (en points)
+#  setfont          --> en faire la police courante pour ecrire du texte
+#
+#  (chaine) show    --> ecrire la chaine de caracteres specifiee entre ()
+#
+
