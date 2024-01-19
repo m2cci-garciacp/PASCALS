@@ -17,7 +17,7 @@ void write_file () {
     
     // Open file
     // Use stdout if filename is -
-    if (strcmp(output_file_name, "")) {
+    if (strcmp(output_file_name, "-")) {
     foutput = fopen (output_file_name,"w");
     if (foutput == NULL) {
         fprintf (stderr, "Error on opening %s for writing \n",output_file_name);

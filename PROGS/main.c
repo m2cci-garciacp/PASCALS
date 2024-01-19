@@ -70,7 +70,9 @@ int main (int argc, char *argv[], char *envp[]) {
 		}
 		else {
 			wait(NULL);
-			printf("Génération et affichage du triangle de Pascal terminés\n");
+			if (strcmp(output_file_name, "-")) {
+				printf("Génération et affichage du triangle de Pascal terminés\n");
+			}
 		}
 	} 
 

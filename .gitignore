@@ -1,2 +1,7 @@
 ERRORS/*
 
+*.o
+
+# executables
+triangle
+server
