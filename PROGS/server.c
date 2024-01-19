@@ -34,7 +34,7 @@ void create_answer () {
 
   char *text = server_message;
 
-     number_of_lines = 8;  // default size 
+  number_of_lines = analyze_client_request ();
   
   // compute size of html figure
   compute_cells_values ();
