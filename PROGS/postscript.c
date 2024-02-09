@@ -2,6 +2,7 @@
 #include "data.h"
 
 #include <stdio.h>
+#include <pthread.h>
 
 // generate cell postscript in postscript_string field of the cell
 // call set_font_size before using this function
@@ -52,10 +53,22 @@ void *thread_compute_single (void *p) {
 void compute_postscript () {
     int l,c;
 
+    // for(l=0;l<=number_of_lines;l++) {
+    //     for (c=0;c<=l;c++) {
+    //         thread_compute_single(&(pascal_cells[l][c]));
+    //     }
+    // }
+
     for(l=0;l<=number_of_lines;l++) {
-        for (c=0;c<=l;c++) {
-            thread_compute_single(&pascal_cells[l][c]);
+     for (c=0;c<=l;c++) {
+             pthread_create(&((pascal_cells[l][c]).thread_id), NULL, thread_compute_single, (&(pascal_cells[l][c])));
         }
     }
+    
+ for(l=0;l<=number_of_lines;l++) {
+         for (c=0;c<=l;c++) {
+             pthread_join((pascal_cells[l][c]).thread_id, NULL);
+         }
+     }
     }
 

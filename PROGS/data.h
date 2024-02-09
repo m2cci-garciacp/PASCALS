@@ -10,7 +10,7 @@ typedef struct {
     unsigned delta_y;
     char string_value[STRING_VALUE_LENGTH];  // value number as a string
     char *postscript_string;                 // postscript sequence to draw the cell
-    pthread_t thread_id;                     // for thrad parallelism
+    pthread_t thread_id;                     // for thread parallelism
 } pascal_cell_t;  
 
 extern pascal_cell_t pascal_cells[MAX_PASCAL+1][MAX_PASCAL+1];

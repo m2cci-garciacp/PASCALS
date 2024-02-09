@@ -35,13 +35,13 @@ void compute_cells_strings () {
     void *m;
     for(l=0;l<=MAX_PASCAL;l++) {
         for (c=0;c<=l;c++) {
-        sprintf ( pascal_cells[l][c].string_value, max_format, pascal_cells[l][c].value);
-        m=malloc(POSTSCRIPT_CELL_LENGTH); 
-        if (m == NULL) {
-            fprintf(stderr,"compute_cells_strings : malloc error");
-            exit(EXIT_FAILURE);
-            }
-        pascal_cells[l][c].postscript_string=m;
+            sprintf ( pascal_cells[l][c].string_value, max_format, pascal_cells[l][c].value);
+            m=malloc(POSTSCRIPT_CELL_LENGTH); 
+            if (m == NULL) {
+                fprintf(stderr,"compute_cells_strings : malloc error");
+                exit(EXIT_FAILURE);
+                }
+            pascal_cells[l][c].postscript_string=m;
         }
     }
 }

@@ -24,7 +24,7 @@ int analyze_client_request () {
   int found,nblines;
 
   found = sscanf(client_message,"GET /%d",&nblines);
-  if (found != 1) return -1;
+  if (found != 1) return 8;
   return nblines;
 }
 
@@ -53,6 +53,7 @@ void create_answer () {
 int main (void) {
   int socket_desc;
   int answer_socket;
+	int pid ; 
   ssize_t length;
   struct sockaddr_in server_addr, client_addr;
   socklen_t client_addr_len;
@@ -60,81 +61,88 @@ int main (void) {
   socket_desc = socket(AF_INET,SOCK_STREAM, IPPROTO_TCP);
  
   if(socket_desc < 0){
-        fprintf(stderr,"Error while creating socket\n");
+          fprintf(stderr,"Error while creating socket\n");
+          return -1;
+     }
+    fprintf(stderr,"Socket created successfully\n");
+
+    // Set port and IP:
+    memset(server_addr.sin_zero, '\0', sizeof server_addr.sin_zero);     
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(PORT);
+    // Accept from all address instead of 127.0.0.1
+    // Especially when running in docker
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+
+    const int enable = 1;
+    if (setsockopt(socket_desc, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0) {
+      fprintf (stderr,"Set REUSEADDR socket option failed\n");
+      exit(EXIT_FAILURE);
+    }
+
+    // Bind to the set port and IP:
+    if(bind(socket_desc, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0){
+        fprintf(stderr,"Couldn't bind to the port\n");
         return -1;
     }
-   fprintf(stderr,"Socket created successfully\n");
+    fprintf(stderr,"Done with binding\n"); 
 
-   // Set port and IP:
-   memset(server_addr.sin_zero, '\0', sizeof server_addr.sin_zero);    
-   server_addr.sin_family = AF_INET;
-   server_addr.sin_port = htons(PORT);
-   // Accept from all address instead of 127.0.0.1
-   // Especially when running in docker
-   server_addr.sin_addr.s_addr = INADDR_ANY;
+    if (listen(socket_desc,3) <0) {
+        fprintf (stderr,"FAILURE : listen\n");
+        return -1;
+    }
 
-   const int enable = 1;
-   if (setsockopt(socket_desc, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0) {
-     fprintf (stderr,"Set REUSEADDR socket option failed\n");
-     exit(EXIT_FAILURE);
-   }
+    fprintf (stderr,"listen ok\n");
+    while (1) {
+        answer_socket = accept(socket_desc,(struct sockaddr*)&client_addr,&client_addr_len);
+        if (answer_socket<0)  {
+            fprintf (stderr,"FAILURE : accept\n");
+            return -1;
+        }
 
-   // Bind to the set port and IP:
-   if(bind(socket_desc, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0){
-      fprintf(stderr,"Couldn't bind to the port\n");
-      return -1;
-   }
-   fprintf(stderr,"Done with binding\n"); 
+        fprintf (stderr,"accept ok\n");
+        pid =fork();
+        if (pid ==0){
+            close(socket_desc);
+            // receive client message
+            length = read(answer_socket, client_message, sizeof(client_message));
+            
+            if (length <0)  {
+                printf ("reception failure\n");
+                switch (errno) {
+                case EAGAIN : fprintf (stderr,"EAGAIN\n");break; 
+                case EBADF : fprintf (stderr,"EBADF\n");break; 
+                case EFAULT : fprintf (stderr,"EFAULT\n");break; 
+                case EIO : fprintf (stderr,"EIO\n");break; 
+                case EINTR : fprintf (stderr,"EINTR\n");break; 
+                case EINVAL : fprintf (stderr,"EINVAL\n");break; 
+                }
+                perror ("error type : ");
+                return -1;
+            }
+        
+            fprintf (stderr,"received ok : 0x%lx\n",length);
 
-   if (listen(socket_desc,3) <0) {
-      fprintf (stderr,"FAILURE : listen\n");
-      return -1;
-   }
+            // Add end of string to message
+            client_message[length] = 0;
 
-   fprintf (stderr,"listen ok\n");
+            // Print client and message 
+            fprintf(stderr,"Received message from IP: %s and port: %i\n",
+                    inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
 
-   answer_socket = accept(socket_desc,(struct sockaddr*)&client_addr,&client_addr_len);
-   if (answer_socket<0)  {
-      fprintf (stderr,"FAILURE : accept\n");
-      return -1;
-   }
+            fprintf(stdout,"Message from client : <<\n %s", client_message);
+            fprintf(stdout,">>End of message from client\n\n");
 
-   fprintf (stderr,"accept ok\n");
+            create_answer ();
 
-   // receive client message
-   length = read(answer_socket, client_message, sizeof(client_message));
-   
-   if (length <0)  {
-      printf ("reception failure\n");
-      switch (errno) {
-        case EAGAIN : fprintf (stderr,"EAGAIN\n");break; 
-        case EBADF : fprintf (stderr,"EBADF\n");break; 
-        case EFAULT : fprintf (stderr,"EFAULT\n");break; 
-        case EIO : fprintf (stderr,"EIO\n");break; 
-        case EINTR : fprintf (stderr,"EINTR\n");break; 
-        case EINVAL : fprintf (stderr,"EINVAL\n");break; 
-      }
-      perror ("error type : ");
-      return -1;
-   }
- 
-   fprintf (stderr,"received ok : 0x%lx\n",length);
-
-   // Add end of string to message
-   client_message[length] = 0;
-
-   // Print client and message 
-   fprintf(stderr,"Received message from IP: %s and port: %i\n",
-           inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
-
-   fprintf(stdout,"Message from client : <<\n %s", client_message);
-   fprintf(stdout,">>End of message from client\n\n");
-
-   create_answer ();
-
-   length = write(answer_socket, server_message, strlen(server_message));
-
-   close(socket_desc);
-   
-   return 0;
+            length = write(answer_socket, server_message, strlen(server_message));
+            close(answer_socket);
+            exit(0);
+        } else {
+            close(answer_socket);
+        }
+    }
+    close(socket_desc);
+    
+    return 0;
 }
