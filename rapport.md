@@ -269,7 +269,11 @@ Pour cela, on reajoute un boucle while true  apres la primitive listen et puis, 
 ---
 
 ## 7 Parallélisation de génération du post-script
-Pour parallélisér la création des cellules, on sustitue l'appel de la function ``thread_compute_single`` par la création d'un thread avec cette fonction comme paramètre. Il faut aussi dupliquer les boucles embriquées car on doit d'abord créer les threads et puis les attendre.
+L'idée dans cette section est de paralléliser l'écriture des cellules du triangle. Pour cela, on va creer un thread pour chaque celulle, et puis un RDV a N participants (tous les threads) pour continuer l'execution du programme. On peut resoudre ce problème avec N semaphores, où la resource est la finalisation du thread correspondant et est initialisée à 0 (à la creation du thread, ceci n'est pas fini).  
+Étant donnée la simplicité du problème (nos semaphores sont binaires (fini ou pas fini) et on doit réaliser un seul RDV), on peut s'epargner des variables semaphores, et utliser un simple *wait terminaison* du thread.
+
+Pour créer les threads, on sustitue l'appel de la fonction `thread_compute_single` par `pthread_create` avec cette fonction et ses arguments comme paramètres. Pour le RDV à plusieurs, on doit dupliquer les boucles, et puis realiser le *wait terminaison* du thread, qui est donné par la primitive `pthread_join` et qui permet de rassembler tous les fils d'execution avant continuer.
+
 
 Voici l'extrait du code que j'ai remplacé
  ```c
@@ -283,15 +287,21 @@ par
 ```c
 for(l=0; l<=number_of_lines; l++) {
     for (c=0; c<=l; c++) {
-        pthread_create(&((pascal_cells[l][c]).thread_id), NULL, thread_compute_single, &(pascal_cells[l][c]));
+		// Creation d'un thread
+        pthread_create(&((pascal_cells[l][c]).thread_id),     // thread
+					   NULL,                                  // attributes du thread
+					   thread_compute_single,                 // fonction a paralleliser
+					   &(pascal_cells[l][c]));                // arguments de la fonction a paralléliser
     }
 }
 
 for(l=0; l<=number_of_lines; l++) {
     for (c=0; c<=l; c++) {
-        pthread_join((pascal_cells[l][c]).thread_id, NULL);
+		// Attente des threads.
+        pthread_join((pascal_cells[l][c]).thread_id,          // thread
+					 NULL);                                   // attributes du thread
     }
 }
 ```
 
-Etant donné la legère charge de travail pour chaque thread, le parallélisme ici n'ameliore pas la performance du programme, par contre, on peut observer les appels systèmes executées avec ``strace -f``, où on observe les appels ``clone`` correspondants à les créations des threads.
+Étant donnée la legère charge de travail pour chaque thread, le parallélisme ici n'ameliore pas la performance du programme, par contre, on peut observer les appels systèmes executées avec `strace -f`, où on observe les appels `clone` correspondants à les créations des threads.
