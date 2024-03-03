@@ -302,48 +302,169 @@ for(l=0; l<=number_of_lines; l++) {
 
 Étant donnée la legère charge de travail pour chaque *thread*, le parallélisme ici n'ameliore pas la performance du programme, par contre, on peut observer les appels systèmes executées avec `strace -f`, où on observe les appels `clone` correspondants à les créations des *threads*.
 
+---
+
 ## A Annexe : Comprehension des tubes
 
-Commençant par un seul tube:
-``#include <stdio.h> 
-#include <unistd.h> 
-#define MSGSIZE 16 
-char* msg1 = "hello, world #1"; 
-char* msg2 = "hello, world #2"; 
-char* msg3 = "hello, world #3"; 
+Commençant par un seul tube: on écrit dans le tube, puis on lit du tube pour l'afficher dans l'écran.
+```c
+#include ...
+
+int taille=16; 
+char* msg = "hello";
   
+int main()
+{
+    char buf[taille];
+    int p[2];
+    
+    pipe(p);
+	// write pipe
+    write(p[1], msg, taille);
+    
+    // read pipe
+    read(p[0], buf, taille);
+    printf("pere : %s\n", buf);
+    
+    return 0;
+}
+```
+Maintenant on introduit un `fork`, pour communiquer entre processus:
+```c
+...
+
 int main() 
 { 
-    char inbuf[MSGSIZE]; 
-    int p[2], i; 
-  
-    if (pipe(p) < 0) 
-        exit(1); 
-  
-    /* continued */
-    /* write pipe */
-  
-    write(p[1], msg1, MSGSIZE); 
-    write(p[1], msg2, MSGSIZE); 
-    write(p[1], msg3, MSGSIZE); 
-  
-    for (i = 0; i < 3; i++) { 
-        /* read pipe */
-        read(p[0], inbuf, MSGSIZE); 
-        printf("% s\n", inbuf); 
-    } 
+    char buf[taille];
+    int p[2];
+    
+    pipe(p);
+    
+    if (!fork()) {
+        // write pipe
+        write(p[1], msg, taille);
+        exit(0);
+    } else {
+        // read pipe
+        read(p[0], buf, taille);
+        printf("pere : %s\n", buf);
+    }
     return 0; 
 } 
+```
+On a déjà la communication entre processus avec un tube. On va maintenant rediriger l'entrée et la sortie standard.
+```c
+...
 
+int main() 
+{ 
+    char buf[taille]; 
+    int p[2]; 
+  
+    pipe(p);
+    
+    if (!fork()) {
+		// redirection de la sortie standard vers l'entrée du tube
+		dup2(p[1], 1);
+		close(p[0]);
+		close(p[1]);
+        // écrire sur la sortie standard
+        printf("%s", msg);  // presque equiv : write(1, msg, taille)
+        exit(0);
+    } else {
+		// redirection de la sortie du tube vers l'entrée standard
+		dup2(p[0], 0);
+		close(p[1]);
+		close(p[0]);
+        // lire de l'entrée standard
+        scanf("%s", buf);  // presque equiv : read(0, buf, taille)
+        printf("pere2 : %s\n", buf); 
+    }
+    return 0; 
+} 
+```
+On a déjà delucidé les tubes nécessaires, maintenant si on applique ceci au programme *triangle*:
+```c
+...
 
+int main (int argc, char *argv[], char *envp[]) {
+    ...
 
-fwrite, fprint
-int fprintf(FILE *stream, const char *format, ...)
-fp = fopen( "file.txt" , "w" );
-   fwrite(str , 1 , sizeof(str) , fp );
+  	int p[2];
+  	int pid;
 
-   fclose(fp);
+  	// Créer une tube avant le premier fork
+  	pipe(p);
+  	pid = fork();
 
+  	if (!pid) {
+		// redirection de la sortie standard
+  		dup2(p[1], 1);
+		close(p[0]);
+		close(p[1]);
+        // Fonction qui écrit sur la sortie standard
+  		write_file ();
+  		exit(0);
+  	}
+  	else {
+		// redirection de la sortie du tube vers l'entrée standard
+		dup2(p[0], 0);
+		close(p[1]);
+		close(p[0]);
+        // Exécution de gv, qui lit l'entrée standard
+		char * arguments [] = {"gv", "-", NULL};
+		execv("/usr/bin/gv", arguments);
+  	}
+    return 0;
+}
+```
+Finalement, pour afficher un message de fin, on crée un deuxième fils:
+```c
+...
 
-Pour écrire les redirections du tube, il a fallu utiliser des fonctions `write` et `read` pour tester la communication entre les fils.
-Et puis, avec `cat` j'ai imprimé le résultat du `write_file` dans le fils droite.
+int main (int argc, char *argv[], char *envp[]) {
+    ...
+
+  	int p[2];
+  	int pid1, pid2;
+
+  	// Créer une tube avant le premier fork
+  	pipe(p);
+  	pid1 = fork();
+
+  	if (!pid1) {
+		// FILS 1
+		// redirection de la sortie standard
+  		dup2(p[1], 1);
+		close(p[0]);
+		close(p[1]);
+        // Fonction qui écrit sur la sortie standard
+  		write_file ();
+  		exit(0);
+  	}
+  	else {
+		pid2 = fork();
+
+		if (!pid2) {
+			// FILS 2
+			// redirection de la sortie du tube vers l'entrée standard
+			dup2(p[0], 0);
+			close(p[1]);
+			close(p[0]);
+			// Exécution de gv, qui lit l'entrée standard
+			char * arguments [] = {"gv", "-", NULL};
+			execv("/usr/bin/gv", arguments);
+			exit(0);
+		} else {
+			// PERE
+			close(p[1]);
+			close(p[0]);
+			wait(NULL);
+			wait(NULL);
+			printf("Fin.\n");
+		}
+  	}
+    return 0;
+}
+```
+
