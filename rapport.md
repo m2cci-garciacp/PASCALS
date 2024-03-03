@@ -139,15 +139,16 @@ La commande `diff` nous permet de voir les différences entre les deux fichiers.
 ---
 
 ## 5 Création d’un tube entre triangle et gs
+Avant me lancer dans la création du tube dans le programme principal, il me a fallu recréer la structure des forks et tubes à part, de manière incremental, ce qui m'a permit de comprendre les tubes, et les fonctions de écriture/lecture. Détails en annexe.
 
-Pour écrire les redirections du tube, il a fallu utiliser des fonctions ``write`` et ``read`` pour tester la communication entre les fils.
-Et puis, avec ``cat`` j'ai imprimé le résultat du ``write_file`` dans le fils droite.
+La structure choisie pour résoudre la problematique est: créer 2 fils (un avec la fonction `write` du main et un autre qui appele l'afficheur du triangle) et un tube pour communiquer entre les deux fils.
 
-Finalement, la visualisation graphique avec le logiciel GhostScript permet d'afficher le triangle de Pascal, par contre une fois fermé la fenêtre graphique, le processus
-continue a tourner sans pouvoir sortir comme d'habitude avec la commande ``quit``. Pour remédier cela, le triangle est montré sur
-GhostView, qui n'a pas posé de problèmes à ce niveau-la.
+Le premier fils va rédiriger la sortie standard ver l'entrée du tube (`dup2(p[1], 1)`), donc la fonction `write_file ()` ne va plus écrire sur l'écran mais dans l'entrée du tube.
+De son coté, l'autre fils va a rédiriger la sortie du tube vers l'entrée standard (`dup2(p[0], 0)`), qui va être utilisé par gv pour l'affichage.
 
+Le processus père de son coté va attendre que les deux fils finissent, pour après afficher un message de conclusion.
 
+Voici un extrait du code utilisé avec des commentaires dans les parties importantes:
 ```c
 int main (int argc, char *argv[], char *envp[]) {
     lire_args(argc, argv);
@@ -175,7 +176,7 @@ int main (int argc, char *argv[], char *envp[]) {
   			exit(0);
   	}
   	else {
-  			// Père  : créer un deuxième fils  
+  			// Père : crée un deuxième fils  
   			pid2 = fork();
   			if (!pid2) {
   				// Fils droit : reçoit
@@ -191,7 +192,7 @@ int main (int argc, char *argv[], char *envp[]) {
   				exit(0);
     		}
     		else {
-    			// Pere
+    			// Père
     			// Attente de finalisation de deux enfants.
     			wait(NULL);
     			wait(NULL);
@@ -203,13 +204,18 @@ int main (int argc, char *argv[], char *envp[]) {
 }
 ```
 
-Voici un extrait du code utilisé avec des commentaires dans les parties importantes. En plus, ceci a été implémenté dans le programme du point 4,
- où le troisième argument de l’exécutable est le fichier de sauvegarde du triangle.
+La visualisation graphique avec le logiciel GhostScript n'a pas marché correctement. La fenêtre graphique ne'accepte pas la commande `quit` et si fermée manuellement le processus continue dans le background. Pour remédier cela, le triangle est montré sur GhostView, qui n'a pas posé de problèmes à ce niveau-la.
+
+
+Les modifications de la section 4 et 5 ont été implementées dans le même code de la forme suivante:
+	- `argc=3` : version de la section 5.
+	- `argc=4` : si `argv[3]="-"` impression sur la sortie standard, sinon sortie sur fichier (version de section 4).
+	- autre  : erreur d'usage.
 
 ---
 
 ## 6 Générateur de triangle en serveur html
-On part d'un serveur TCP, qui tourner sur le port 8080. On peut y acceder avec l'adresse ``localhost:8080`` ou ``127.0.0.1:8080``. Le valeur par defaut de étages pour le triangle généré par le serveur est 8, par contre, on peut facilement ajouter un paramètre a la commande, pour customizer notre triangle au serveur.
+On part d'un serveur TCP, qui tourner sur le port 8080. On peut y acceder avec l'adresse `localhost:8080` ou `127.0.0.1:8080`. La valeur par defaut pour le nombre d'étages pour le triangle générée par le serveur est 8, par contre, on peut facilement ajouter un paramètre à la commande, pour customizer notre triangle au serveur.
 ```c
 // Changer
  number_of_lines = 8;  // default size 
@@ -218,15 +224,14 @@ On part d'un serveur TCP, qui tourner sur le port 8080. On peut y acceder avec l
  number_of_lines = analyze_client_request();
  ```
  
+On peut aussi faire des requêtes avec la ligne de commande avec `wget` ou `curl`. `wget` peut télécharger le fichier directe avec
+```wget 127.0.0.1:8080/15``` et le fichier téléchargé est nommé `15`, si c'est sans paramètre, le fichier téléchargé est nommé `index.html`. Par contre,
+```curl 127.0.0.1:8080/15``` montre le triangle à l'ecran, donc il faut le rediriger avec `>` vers un fichier de notre choix.
 
-On peut aussi faire des requetes avec la ligne de commande avec ``wget`` ou ``curl``. ``wget`` peut telecharger le fichier directe avec
-```wget 127.0.0.1:8080/15``` et le fichier téléchargé est nommé ``15``, si c'est sans paramètre, le fichier téléchargé est nommé ``index.html``. Par contre,
-```curl 127.0.0.1:8080/15``` montre le triangle a l'ecran, donc il faut le rediriger avec ``>``.
-
-Le serveur fourni, n'accepte qu'une seule connexion. Avec les outils étudiés en cours, on peut facilement modifier le serveur pour qui écoute autant de requetes que necessaire.
-Pour cela, on reajoute un boucle while true  apres la primitive listen et puis, une fois acceptée la connexion, on fait un fork pour le fils, qui gere la requte et le père continue a ecouter pour une nouvelle connexion:
+Le serveur fourni n'accepte qu'une seule connexion. Avec les outils étudiés en cours, on peut facilement modifier ceci pour qui écoute et gére autant de requêtes que necessaire.
+Pour cela, on ajoute un boucle `while true` après la primitive `listen` et puis, une fois acceptée la connexion, on fait un `fork` pour que le fils gére la requête et le père continue à écouter pour une nouvelle connexion:
 ```c
-	// ecouter pour connexions entrantes
+	// écouter pour connexions entrantes
 	listen(server_socket, ...)
     while (1) {
 		// accepter connexion entrante
@@ -235,22 +240,22 @@ Pour cela, on reajoute un boucle while true  apres la primitive listen et puis, 
         pid = fork();
 		// fils
         if (pid == 0){
-			// fermer socket serveur, on a pas besoin de deux
+			// fermer socket serveur, on n'a pas besoin des deux
             close(server_socket);
-            // gerer la demande du client
+            // gérer la demande du client
 			length = read(client_socket, client_message, sizeof(client_message));
 			...
             create_answer();
 			...
             length = write(client_socket, server_message, strlen(server_message));
-			// fermer socket client
+			// fermer socket du client
             close(client_socket);
 			// finir processus
             exit(0);
 		}
 		// père
         else {
-			// fermer socket client pour continuer a ecouter
+			// fermer socket du client pour continuer à écouter
             close(client_socket);
         }
     }
@@ -260,10 +265,10 @@ Pour cela, on reajoute un boucle while true  apres la primitive listen et puis, 
 ---
 
 ## 7 Parallélisation de génération du post-script
-L'idée dans cette section est de paralléliser l'écriture des cellules du triangle. Pour cela, on va creer un thread pour chaque celulle, et puis un RDV a N participants (tous les threads) pour continuer l'execution du programme. On peut resoudre ce problème avec N semaphores, où la resource est la finalisation du thread correspondant et est initialisée à 0 (à la creation du thread, ceci n'est pas fini).  
-Étant donnée la simplicité du problème (nos semaphores sont binaires (fini ou pas fini) et on doit réaliser un seul RDV), on peut s'epargner des variables semaphores, et utliser un simple *wait terminaison* du thread.
+L'idée dans cette section est de paralléliser l'écriture des cellules du triangle. Pour cela, on va créer un *thread* pour chaque cellule, et puis un RDV à N participants (tous les *threads*) pour continuer l'exécution du programme. On peut resoudre ce problème avec N semaphores, où la resource est la finalisation du *thread* correspondant et est initialisée à 0 (à la creation du *thread*, ceci n'est pas fini).  
+Étant donnée la simplicité du problème (nos semaphores sont binaires (fini ou pas fini) et on doit réaliser un seul RDV), on peut s'epargner des variables semaphores, et utiliser un simple *wait terminaison* du *thread*.
 
-Pour créer les threads, on sustitue l'appel de la fonction `thread_compute_single` par `pthread_create` avec cette fonction et ses arguments comme paramètres. Pour le RDV à plusieurs, on doit dupliquer les boucles, et puis realiser le *wait terminaison* du thread, qui est donné par la primitive `pthread_join` et qui permet de rassembler tous les fils d'execution avant continuer.
+Pour créer les *threads*, on sustitue l'appel de la fonction `thread_compute_single` par `pthread_create` avec cette fonction et ses arguments comme paramètres. Pour le RDV à plusieurs, on doit dupliquer les boucles, et puis realiser le *wait terminaison* du *thread*, qui est donné par la primitive `pthread_join` et qui permet de rassembler tous les fils d'exécution avant continuer.
 
 
 Voici l'extrait du code que j'ai remplacé
@@ -295,4 +300,50 @@ for(l=0; l<=number_of_lines; l++) {
 }
 ```
 
-Étant donnée la legère charge de travail pour chaque thread, le parallélisme ici n'ameliore pas la performance du programme, par contre, on peut observer les appels systèmes executées avec `strace -f`, où on observe les appels `clone` correspondants à les créations des threads.
+Étant donnée la legère charge de travail pour chaque *thread*, le parallélisme ici n'ameliore pas la performance du programme, par contre, on peut observer les appels systèmes executées avec `strace -f`, où on observe les appels `clone` correspondants à les créations des *threads*.
+
+## A Annexe : Comprehension des tubes
+
+Commençant par un seul tube:
+``#include <stdio.h> 
+#include <unistd.h> 
+#define MSGSIZE 16 
+char* msg1 = "hello, world #1"; 
+char* msg2 = "hello, world #2"; 
+char* msg3 = "hello, world #3"; 
+  
+int main() 
+{ 
+    char inbuf[MSGSIZE]; 
+    int p[2], i; 
+  
+    if (pipe(p) < 0) 
+        exit(1); 
+  
+    /* continued */
+    /* write pipe */
+  
+    write(p[1], msg1, MSGSIZE); 
+    write(p[1], msg2, MSGSIZE); 
+    write(p[1], msg3, MSGSIZE); 
+  
+    for (i = 0; i < 3; i++) { 
+        /* read pipe */
+        read(p[0], inbuf, MSGSIZE); 
+        printf("% s\n", inbuf); 
+    } 
+    return 0; 
+} 
+
+
+
+fwrite, fprint
+int fprintf(FILE *stream, const char *format, ...)
+fp = fopen( "file.txt" , "w" );
+   fwrite(str , 1 , sizeof(str) , fp );
+
+   fclose(fp);
+
+
+Pour écrire les redirections du tube, il a fallu utiliser des fonctions `write` et `read` pour tester la communication entre les fils.
+Et puis, avec `cat` j'ai imprimé le résultat du `write_file` dans le fils droite.
