@@ -1,78 +1,66 @@
 # TRIANGLE DE PASCAL
 
 ## 2 Lancement de l’interprète Postscript par exec
-La commande which permet de déterminer dans quel répertoire 1 se trouve le fichier exécutable d’une commande. Vérifier dans quel(s) répertoire(s) se trouvent les interprètes Postscript gv et gs. Dans la suite, nous supposerons qu’ils sont dans /usr/bin.
-1. du chemin d’accès aux commandes défini par la variable d’environnement PATH
-3mandelbrot> which gv
-mandelbrot> which gs
-Avec la redirection, on peut afficher le triangle des deux manières suivantes (il faut saisir la commande quit dans la fenêtre terminal pour terminer l’exécution de gs) :
-mandelbrot> ./triangle 4 12 - > triangle.ps
-mandelbrot> /usr/bin/gv triangle.ps
-mandelbrot> /usr/bin/gs -q -sDEVICE=x11 triangle.ps
-GS> quit
-On veut maintenant que la première commande exécute automatiquement gv ou
-gs sur le fichier triangle.ps pour afficher le résultat.
-mandelbrot> ./triangle 4 12 - > triangle.ps
-Pour celà, il suffit d’utiliser la primitive exec à la fin de la procédure main pour lancer gv. Inspirez-vous de l’exemple d’utilisation de exec du tp sur les processus (notament dans forkecho, forkps).
-Modifier le code, recompiler, tester (ne pas oublier de taper q pour terminer l’exécution de gv).
-Attention : Pensez à la sortie standard d’erreur (qui n’est pas redirigée) pour
-vos messages de trace (sinon ils iront se mélanger aux ordres postscript dans le fichier triangle.ps).
+La commande which permet de déterminer dans quel répertoire se trouve le fichier exécutable d’une commande. Dans mon cas, l'absence de reponse m'a indiqué que'il n'était pas installé (il devrait être installé sur /usr/bin et ce chemin est dans la variable PATH). 
 
-A TESTER
+Ici, on veut que la commande `$ ./triangle 4 12 - 1> triangle.ps` sauvegarde le triangle dans le fichier `triangle.ps` et puis, l'affiche avec GhostView.
+Pour cela, on execute les fonctions principales du *main* (`lire_args`, `compute_cells...`, `compute postcript`, `write file`) et puis, après un temps de pause de 3 secondes, on appele l'executable de gv pour afficher le triangle avec un `execv` (j'ai opté pour `execv` en lieu de `execve` car on n'a pas besoin de transmettre des nouvelles variables d'environnement. Autrement, on aurait pu aussi renvoyer les variables d'environnement reçues dans le main avec `execve(prog_suivant, arguments, envp)`).
+
 ```c
 char * arguments [] = {"/usr/bin/gv", NULL ,NULL};
 char prog_suivant [] = "/usr/bin/gv";
 
 int main (int argc, char *argv[], char *envp[]) {
+	// Fonctions principales
     lire_args(argc,argv);
     compute_cells_values ();
     compute_cells_strings ();
-
     compute_postscript ();
-
     write_file ();
-    sleep (3);   // wait 3 second to allow gs to display the picture
+
+	// Attendre 3 secondes
+    sleep (3);
 	
 	// Ajouter le nom du fichier cree aux arguments de exec
-	arguments[1] = output_file_name;
+	arguments[1] = "triangle.ps";
 		
-	// appel a gs
+	// Appel a gv
 	execv(prog_suivant, arguments);
 
-  return 0;
+    return 0;
 }
 ```
 
+---
 ## 3 Lancement de gs/gv par fork et exec
-Pour completer la practique sur le fork et exec, on peut calculer le triangle dans le programme principal, et puis dupliquer le processus avec fork pour lui dessiner sur gs.
+Pour attendre la fin du `execv`, on ne peut pas simplement écrire de code après, car `exec` reécrit tout la suite du programme. Pour attendre la fin du `exec`, on peut créer une duplication de processus avec `fork` et attendre la fin du fils avec `wait`.
+
+En partant du code de la section 2, j'ai ajouté une duplication `fork` et l'appel `exec` est mis dedans le code du fils (pid=0), donc le père connait son pid et peut l'attendre avec le `wait`. Après le message est affiche avec un simple `printf`.
 
 ```c
 int main (int argc, char *argv[], char *envp[]) {
-	char * arguments [] = {"/usr/bin/gs", NULL , NULL};
-	char prog_suivant [] = "/usr/bin/gs";
-	int pid;
-
 	...
+	arguments[1] = "triangle.ps";
 
-	// Ajouter le nom du fichier cree aux arguments de exec
-	arguments[1] = output_file_name;
-
-	// dupliquer processus
-	pid =fork();
-	// pocessus fils
+	int pid;
+	// Dupliquer processus
+	pid = fork();
+	// Processus fils
 	if (!pid) {
-		// appel a gs
+		// appel a gv
 		execv(prog_suivant, arguments);
 	}
-	// pocessus pere
+	// Processus père
 	else {
-		// attendre fils
-		wait(NULL);
-		// ecrirer message finale sur l'ecran
+		// Attendre fils
+		wait(pid);
+		// Écrirer message finale sur l'ecran
 		printf("Génération et affichage du triangle de Pascal terminés\n");
 	}
+	
+	return 0;
+}
 ```
-Pour cet exercise, j'ai opté pour ``execv`` en lieu de ``execve`` car on n'a pas besoin de transmettre des nouvelles variables d'environnement. Autrement, on aurait pu aussi renvoyer les variables d'environnement reçues dans le main avec ``execve(prog_suivant, arguments, envp)``
 
 ---
 
