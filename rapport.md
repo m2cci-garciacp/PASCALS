@@ -65,10 +65,11 @@ int main (int argc, char *argv[], char *envp[]) {
 ---
 
 ## 4 Génération du Postscript dans un fichier
-Le code source l'application de triangle Pascal ne semble pas marcher correctement quand on ajoute un fichier de sauvegarde (3ème paramètre): le fichier résultant ne contient qu'un seule carreau avec la valeur 1.
+Le code source l'application de triangle Pascal ne semble pas marcher correctement quand on ajoute un fichier de sauvegarde (3ème paramètre): le fichier résultant ne contient qu'un seule celulle avec la valeur 1.
 
-En analysant le code, on découvre un erreur dans le code. En appelant la fonction ``write_file`` on itère sur les différent cellules à dessiner, et on appele la fonction ``cell_to_output_file`` pour chaque cellule.
+En analysant le code, on découvre un erreur dans le code: en appelant la fonction `write_file` on itère sur les différent cellules à dessiner, et on appele la fonction `cell_to_output_file` pour chaque cellule.
 Cette fonction (résumé ci-dessous) ouvre en écriture le fichier destination, écrit la valeur correspondant à la cellule, et puis ferme le fichier.
+
 ```c
 void cell_to_output_file (int line, int column) {
     FILE * foutput = stdout;
@@ -94,9 +95,11 @@ void write_file () {
 }
 ```
 
-Ce code efface le fichier de sauvegarde et récrit une cellule a chaque fois, donc la dernière cellule écrite est celle-ci qu'on pouvait observer (valeur ``1``).
+Ce code surécrit le fichier de sauvegarde et a chaque fois, donc il écrasse tout contenu initialement présent dans le fichier. Donc la cellule observée sur le fichier corresponde donc à la dernière cellule écrite (valeur `1`).
 
-Pour résoudre ce problème, j'ai ouvert une fois le fichier (en mode écriture), et puis avec le fichier ouvert, on itère sur les cellules pour les sauvegarder, comme montre ci-dessous.
+Pour résoudre ce problème, on pourrait intuitivement penser à changer le mode d'ouverture du fichier et le changer de `"w"` à `"a"` donc on rajouterait les nouvelles cellules aux précédentes. Par contre, si on crée plusieur triangles avec le même nom du fichier, toutes les cellules des différents triangles seront toutes ajoutées au même fichier. 
+
+Finalement, j'ai opté pour ouvrir le fichier une seule fois au début et en mode écriture, et avec le fichier ouvert, on itère sur les cellules pour les sauvegarder, comme montre ci-dessous. Ceci permet d'ouvrir seulement une fois le fichier : eviter de créer de plusieurs fois des entrées dans les différentes tables des fichiers.
 ```c
 void cell_to_output_file (FILE * fname, int line, int column) {
     fprintf(fname,"%s",pascal_cells[line][column].postscript_string);
@@ -131,7 +134,7 @@ $ ./triangle 4 12 triangle_par_argument.ps
 $ diff triangle_redigire.ps triangle_redigire.ps
 ```
 
-La commande ``diff`` nous permet de voir les différences entre les deux fichiers. On peut aussi vérifier visuellement avec GhostView en affichant chaque fichier.
+La commande `diff` nous permet de voir les différences entre les deux fichiers. On peut aussi vérifier visuellement avec GhostView en affichant chaque fichier.
 
 ---
 
